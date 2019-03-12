@@ -4,5 +4,5 @@ This is a store of my class-work for [Bimm143 Winter 2019](https://bioboot.githu
 
 ## Contents
 -Class04 [Introduction to R]()
--Class05 R Graphics
+-Class05 [R Graphics]()
 -Class06
