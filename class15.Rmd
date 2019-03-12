@@ -1,0 +1,183 @@
+---
+title: "Class 15: Transcriptomics and the analysis of RNA-Seq data"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import countData and colData into R
+
+```{r}
+counts <- read.csv("data/airway_scaledcounts.csv", stringsAsFactors = FALSE)
+metadata <-  read.csv("data/airway_metadata.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+dim(counts)
+head(counts)
+```
+
+```{r}
+head(metadata)
+```
+
+```{r}
+colnames(counts)
+```
+
+```{r}
+metadata$id
+```
+
+Check for correspondence of metadata and countdata
+```{r}
+all(colnames(counts)[-1]== metadata$id)
+```
+
+First task: find which columns in *counts* correspond to control condictions (i.e. no drug!). Then we can calculate the mean count value for each gene. 
+
+```{r}
+control.inds<- metadata$dex=="control"
+control.ids<- metadata$id[control.inds]
+
+head(counts[,control.ids])
+```
+
+Calculate the mean count value for all genes
+```{r}
+counts$ensgene
+```
+
+```{r}
+control.mean<- rowSums(counts[,control.ids]) /ncol(counts[,control.ids])
+names(control.mean) <- counts$ensgene
+head(control.mean)
+```
+
+Now do the same thing for the drug treated samples (i.e. *treated* columns)
+```{r}
+treated.inds <- metadata$dex == "treated"
+treated.ids <- metadata$id[treated.inds]
+head(counts[, treated.ids])
+
+treated.mean<- rowSums(counts[,treated.ids])/ncol(counts[,treated$ids])
+names(treated.mean)<- counts$ensgene
+```
+Combine the mean count values for control and treated into a new data.frame called meancounts!
+```{r}
+meancounts<- data.frame(control.mean, treated.mean)
+```
+
+```{r}
+colSums(meancounts)
+```
+
+Now we can plot the drug treated vs non-drug treated control count values
+```{r}
+plot(meancounts$control.mean, meancounts$treated.mean)
+```
+
+Now plot log of it
+```{r}
+plot(meancounts$control.mean, meancounts$treated.mean, log= "xy")
+```
+
+
+We can find candidate differentially expressed genes by looking for genes with a large change between control and dex-treated samples. We usually look at the log2 of the fold change, because this has better mathematical properties.
+
+Here we calculate log2foldchange, add it to our meancounts data.frame and inspect the results either with the head() or the View() function for example.
+
+```{r}
+meancounts$log2fc <- 
+  log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
+head(meancounts)
+```
+
+Remove the zero entry genes from meancounts to produce **mycounts**
+```{r}
+zero.vals <- which(meancounts[,1:2]==0, arr.ind=TRUE)
+
+to.rm <- unique(zero.vals[,1])
+mycounts <- meancounts[-to.rm,]
+head(mycounts)
+```
+
+
+```{r}
+up.ind <- mycounts$log2fc > 2
+down.ind <- mycounts$log2fc < (-2)
+```
+
+```{r}
+sum(up.ind)
+```
+
+```{r}
+sum(down.ind)
+```
+
+There are `sum(up.ind)` up regulated genes and `sum(down.ind)` down regulated genes. 
+
+```{r}
+head(mycounts[up.ind,])
+```
+
+##Adding annotation data
+
+Use the merge() function to add annotation data from ensemble
+```{r}
+anno <- read.csv("data/annotables_grch38.csv")
+head(anno)
+```
+
+```{r}
+mycounts.annotated<- merge(x=mycounts, y=anno, by.x="row.names", by.y="ensgene")
+head(mycounts.annotated)
+```
+
+##DESeq2 Analysis
+
+Now we do this analysis properly with p-values!
+
+```{r}
+library(DESeq2)
+```
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                              colData=metadata, 
+                              design=~dex, 
+                              tidy=TRUE)
+dds
+```
+
+```{r}
+dds <- DESeq(dds)
+```
+
+```{r}
+res01 <- results(dds)
+head(res01)
+```
+
+```{r}
+res01 <- results(dds, alpha=0.05)
+summary(res01)
+```
+
+```{r}
+mycols<- rep("gray", nrow(res01))
+mycols[abs(res01$log2FoldChange)>2] <-"blue"
+plot(res01$log2FoldChange, -log(res01$padj), col=mycols)
+```
+
+
+
+
+
+
+
+
+
